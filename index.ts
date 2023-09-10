@@ -5,11 +5,13 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import { createWriteStream } from "fs";
 import pino from "pino";
-import qr from "qr-image";
+import qr, { image } from "qr-image";
 import express from "express";
 import { Boom } from "@hapi/boom";
 import { rimraf } from "rimraf";
 import { join } from "path";
+import fileUpload from "express-fileupload";
+
 const PORT = process.env.PORT || 3000;
 interface IGroup {
   id: string;
@@ -89,6 +91,7 @@ let bailey = new BaileysProvider("melkmeshi");
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(fileUpload());
 app.get("/", (req, res) => {
   if (bailey.mysock) {
     bailey.mysock?.sendMessage("218910441322@s.whatsapp.net", { text: "hi" });
@@ -194,7 +197,40 @@ app.post("/group", async (req, res) => {
       .json({ message: "Internel server error.", error: String(err) });
   }
 });
-
+app.get("/sendattchment", async (req, res) => {
+  res.sendFile(__dirname + "/sendattchment.html");
+});
+app.post("/sendvideo", async (req, res) => {
+  const video = req.files!.video as fileUpload.UploadedFile;
+  const phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
+  const caption = req.body.caption;
+  await bailey.mysock?.sendMessage(`${phoneNumber}`, {
+    video: video.data,
+    caption,
+    gifPlayback: false,
+  });
+  res.send("ok");
+});
+app.post("/sendimage", async (req, res) => {
+  const image = req.files!.image as fileUpload.UploadedFile;
+  const phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
+  const caption = req.body.caption;
+  await bailey.mysock?.sendMessage(`${phoneNumber}`, {
+    image: image.data,
+    caption: caption ?? "",
+  });
+  res.send("ok");
+});
+app.post("/sendfile", async (req, res) => {
+  const file = req.files!.file as fileUpload.UploadedFile;
+  const phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
+  await bailey.mysock?.sendMessage(`${phoneNumber}`, {
+    document: file.data,
+    mimetype: file.mimetype,
+    fileName: file.name,
+  });
+  res.send("ok");
+});
 app.listen(PORT, () => {
   console.log(`Example app live in http://localhost:${PORT}`);
 });

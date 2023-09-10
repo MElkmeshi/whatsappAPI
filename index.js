@@ -69,6 +69,7 @@ var qr_image_1 = __importDefault(require("qr-image"));
 var express_1 = __importDefault(require("express"));
 var rimraf_1 = require("rimraf");
 var path_1 = require("path");
+var express_fileupload_1 = __importDefault(require("express-fileupload"));
 var PORT = process.env.PORT || 3000;
 var baileyGenerateImage = function (base64, name) {
     if (name === void 0) { name = "qr.png"; }
@@ -179,6 +180,7 @@ var bailey = new BaileysProvider("melkmeshi");
 var app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
+app.use((0, express_fileupload_1.default)());
 app.get("/", function (req, res) {
     var _a;
     if (bailey.mysock) {
@@ -344,6 +346,73 @@ app.post("/group", function (req, res) { return __awaiter(void 0, void 0, void 0
                     .json({ message: "Internel server error.", error: String(err_2) });
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
+        }
+    });
+}); });
+app.get("/sendattchment", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    return __generator(this, function (_a) {
+        res.sendFile(__dirname + "/sendattchment.html");
+        return [2 /*return*/];
+    });
+}); });
+app.post("/sendvideo", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var video, phoneNumber, caption;
+    var _a;
+    return __generator(this, function (_b) {
+        switch (_b.label) {
+            case 0:
+                video = req.files.video;
+                phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
+                caption = req.body.caption;
+                return [4 /*yield*/, ((_a = bailey.mysock) === null || _a === void 0 ? void 0 : _a.sendMessage("".concat(phoneNumber), {
+                        video: video.data,
+                        caption: caption,
+                        gifPlayback: false,
+                    }))];
+            case 1:
+                _b.sent();
+                res.send("ok");
+                return [2 /*return*/];
+        }
+    });
+}); });
+app.post("/sendimage", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var image, phoneNumber, caption;
+    var _a;
+    return __generator(this, function (_b) {
+        switch (_b.label) {
+            case 0:
+                image = req.files.image;
+                phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
+                caption = req.body.caption;
+                return [4 /*yield*/, ((_a = bailey.mysock) === null || _a === void 0 ? void 0 : _a.sendMessage("".concat(phoneNumber), {
+                        image: image.data,
+                        caption: caption !== null && caption !== void 0 ? caption : "",
+                    }))];
+            case 1:
+                _b.sent();
+                res.send("ok");
+                return [2 /*return*/];
+        }
+    });
+}); });
+app.post("/sendfile", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var file, phoneNumber;
+    var _a;
+    return __generator(this, function (_b) {
+        switch (_b.label) {
+            case 0:
+                file = req.files.file;
+                phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
+                return [4 /*yield*/, ((_a = bailey.mysock) === null || _a === void 0 ? void 0 : _a.sendMessage("".concat(phoneNumber), {
+                        document: file.data,
+                        mimetype: file.mimetype,
+                        fileName: file.name,
+                    }))];
+            case 1:
+                _b.sent();
+                res.send("ok");
+                return [2 /*return*/];
         }
     });
 }); });
