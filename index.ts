@@ -2,6 +2,8 @@ import makeWASocket, {
   useMultiFileAuthState,
   Browsers,
   DisconnectReason,
+  AnyMessageContent,
+  delay,
 } from "@whiskeysockets/baileys";
 import { createWriteStream } from "fs";
 import pino from "pino";
@@ -79,6 +81,51 @@ class BaileysProvider {
       sock.ev.on("creds.update", async () => {
         await saveCreds();
       });
+      const sendMessageWTyping = async (
+        msg: AnyMessageContent,
+        jid: string
+      ) => {
+        await sock.presenceSubscribe(jid);
+        await delay(500);
+
+        await sock.sendPresenceUpdate("composing", jid);
+        await delay(2000);
+
+        await sock.sendPresenceUpdate("paused", jid);
+
+        await sock.sendMessage(jid, msg);
+      };
+      sock.ev.on("messages.upsert", async (upsert) => {
+        if (upsert.type === "notify") {
+          // console.log("recv messages ", JSON.stringify(upsert, undefined, 2));
+          for (const msg of upsert.messages) {
+            if (!msg.key.fromMe) {
+              if (msg.key.participant) {
+                console.log(
+                  "message from: ",
+                  msg.key.participant,
+                  " in group id: ",
+                  msg.key.remoteJid,
+                  " message content: ",
+                  msg.message?.conversation
+                );
+              } else {
+                console.log(
+                  "message from: ",
+                  msg.pushName,
+                  "message content ",
+                  msg.message?.conversation
+                );
+              }
+              await sock!.readMessages([msg.key]);
+              await sendMessageWTyping(
+                { text: msg.message?.conversation || "hi" },
+                msg.key.remoteJid!
+              );
+            }
+          }
+        }
+      });
     } catch (e) {
       console.log(e);
     }
@@ -87,7 +134,7 @@ class BaileysProvider {
     this.mysock = _sock;
   };
 }
-let bailey = new BaileysProvider("melkmeshi");
+let bailey = new BaileysProvider("test");
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -177,16 +224,46 @@ app.post("/", async (req, res) => {
       .json({ message: "Internel server error.", error: String(err) });
   }
 });
+app.post("/newgroup", async (req, res) => {
+  if (!bailey.mysock) {
+    console.log("WhatsApp connection not established.");
+    return res
+      .status(310)
+      .json({ message: "WhatsApp connection not established." });
+  }
+  try {
+    const groupName = req.body.groupName || "My test Group";
+    const phoneNumber = req.body.phoneNumber || "218911779014";
+    const on = await bailey.mysock.onWhatsApp(phoneNumber);
+    if (on.length > 0) {
+      const group = await bailey.mysock.groupCreate(groupName, [
+        `${phoneNumber
+          .replaceAll("+", "")
+          .replaceAll("-", "")
+          .replaceAll(" ", "")}@s.whatsapp.net`,
+        "218910441322@s.whatsapp.net",
+      ]);
+      res.status(200).json({ message: "Message sent." });
+    } else {
+      console.log("User not found: ", phoneNumber);
+      res.status(404).json({ message: "User not found." });
+    }
+  } catch (err) {
+    console.log("Error: ", err);
+    res
+      .status(500)
+      .json({ message: "Internel server error.", error: String(err) });
+  }
+});
 app.post("/group", async (req, res) => {
   try {
-    console.log(req.body);
     const groupID = req.body.groupid;
     const message = req.body.message || "hi";
     if (!groupID) {
       res.status(400).json({ message: "Group id is required." });
       return;
     }
-    await bailey.mysock?.sendMessage(`${groupID}@g.us`, {
+    await bailey.mysock?.sendMessage(groupID, {
       text: message,
     });
     res.status(200).json({ message: "Message sent." });
@@ -199,6 +276,9 @@ app.post("/group", async (req, res) => {
 });
 app.get("/sendattchment", async (req, res) => {
   res.sendFile(__dirname + "/sendattchment.html");
+});
+app.get("/sendgroub", async (req, res) => {
+  res.sendFile(__dirname + "/groupmessage.html");
 });
 app.post("/sendvideo", async (req, res) => {
   const video = req.files!.video as fileUpload.UploadedFile;
