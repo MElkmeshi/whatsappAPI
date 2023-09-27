@@ -70,6 +70,8 @@ var express_1 = __importDefault(require("express"));
 var rimraf_1 = require("rimraf");
 var path_1 = require("path");
 var express_fileupload_1 = __importDefault(require("express-fileupload"));
+var app = (0, express_1.default)();
+var isListening = false;
 var PORT = process.env.PORT || 3000;
 var baileyGenerateImage = function (base64, name) {
     if (name === void 0) { name = "qr.png"; }
@@ -137,6 +139,12 @@ var BaileysProvider = /** @class */ (function () {
                                             }
                                             if (connection === "open") {
                                                 console.log("ready");
+                                                if (!isListening) {
+                                                    isListening = true;
+                                                    app.listen(PORT, function () {
+                                                        console.log("Example app live in http://localhost:".concat(PORT));
+                                                    });
+                                                }
                                                 this.initBusEvents(sock_1);
                                             }
                                             if (!qr) return [3 /*break*/, 2];
@@ -158,6 +166,37 @@ var BaileysProvider = /** @class */ (function () {
                                     }
                                 });
                             }); });
+                            sock_1.ev.on("messages.upsert", function (upsert) { return __awaiter(_this, void 0, void 0, function () {
+                                var _i, _a, msg;
+                                var _b, _c, _d;
+                                return __generator(this, function (_e) {
+                                    switch (_e.label) {
+                                        case 0:
+                                            if (!(upsert.type === "notify")) return [3 /*break*/, 4];
+                                            _i = 0, _a = upsert.messages;
+                                            _e.label = 1;
+                                        case 1:
+                                            if (!(_i < _a.length)) return [3 /*break*/, 4];
+                                            msg = _a[_i];
+                                            if (!!msg.key.fromMe) return [3 /*break*/, 3];
+                                            if (msg.key.participant) {
+                                                console.log("message from: ", msg.key.participant, " in group id: ", msg.key.remoteJid, " message content: ", (_b = msg.message) === null || _b === void 0 ? void 0 : _b.conversation);
+                                            }
+                                            else {
+                                                console.log("message from: ", msg.pushName, "message content ", (_c = msg.message) === null || _c === void 0 ? void 0 : _c.conversation);
+                                            }
+                                            return [4 /*yield*/, sock_1.readMessages([msg.key])];
+                                        case 2:
+                                            _e.sent();
+                                            this.sendMessageWTyping({ text: ((_d = msg.message) === null || _d === void 0 ? void 0 : _d.conversation) || "hi" }, msg.key.remoteJid);
+                                            _e.label = 3;
+                                        case 3:
+                                            _i++;
+                                            return [3 /*break*/, 1];
+                                        case 4: return [2 /*return*/];
+                                    }
+                                });
+                            }); });
                         }
                         catch (e) {
                             console.log(e);
@@ -172,19 +211,45 @@ var BaileysProvider = /** @class */ (function () {
         this.name = name;
         this.mysock = undefined;
         this.saveCredsGlobal = undefined;
+        this.sendMessageWTyping = function (msg, jid) { return __awaiter(_this, void 0, void 0, function () {
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.mysock.presenceSubscribe(jid)];
+                    case 1:
+                        _a.sent();
+                        return [4 /*yield*/, (0, baileys_1.delay)(500)];
+                    case 2:
+                        _a.sent();
+                        return [4 /*yield*/, this.mysock.sendPresenceUpdate("composing", jid)];
+                    case 3:
+                        _a.sent();
+                        return [4 /*yield*/, (0, baileys_1.delay)(2000)];
+                    case 4:
+                        _a.sent();
+                        return [4 /*yield*/, this.mysock.sendPresenceUpdate("paused", jid)];
+                    case 5:
+                        _a.sent();
+                        return [4 /*yield*/, this.mysock.sendMessage(jid, msg)];
+                    case 6:
+                        _a.sent();
+                        return [4 /*yield*/, (0, baileys_1.delay)(2000)];
+                    case 7:
+                        _a.sent();
+                        return [2 /*return*/];
+                }
+            });
+        }); };
         this.initBailey().then();
     }
     return BaileysProvider;
 }());
 var bailey = new BaileysProvider("melkmeshi");
-var app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 app.use((0, express_fileupload_1.default)());
 app.get("/", function (req, res) {
-    var _a;
     if (bailey.mysock) {
-        (_a = bailey.mysock) === null || _a === void 0 ? void 0 : _a.sendMessage("218910441322@s.whatsapp.net", { text: "hi" });
+        bailey.sendMessageWTyping({ text: "hi" }, "218910441322@s.whatsapp.net");
         res.send({ message: "sent" });
     }
     else {
@@ -212,7 +277,7 @@ app.get("/allgroups", function (req, res) { return __awaiter(void 0, void 0, voi
         }
     });
 }); });
-app.get("/getgroubid/:name", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+app.get("/getgroupid/:name", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var data, id, _i, _a, _b, key, value;
     var _c;
     return __generator(this, function (_d) {
@@ -240,7 +305,7 @@ app.get("/getgroubid/:name", function (req, res) { return __awaiter(void 0, void
         }
     });
 }); });
-app.get("/getgroubs", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+app.get("/getgroups", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var data, groups, _i, _a, _b, key, value;
     var _c;
     return __generator(this, function (_d) {
@@ -294,9 +359,9 @@ app.post("/", function (req, res) { return __awaiter(void 0, void 0, void 0, fun
                 on = _a.sent();
                 if (!(on.length > 0)) return [3 /*break*/, 4];
                 console.log("Sending message to: ", phoneNumber);
-                return [4 /*yield*/, bailey.mysock.sendMessage("".concat(phoneNumber, "@s.whatsapp.net"), {
+                return [4 /*yield*/, bailey.sendMessageWTyping({
                         text: message,
-                    })];
+                    }, "".concat(phoneNumber, "@s.whatsapp.net"))];
             case 3:
                 _a.sent();
                 res.status(200).json({ message: "Message sent." });
@@ -317,21 +382,67 @@ app.post("/", function (req, res) { return __awaiter(void 0, void 0, void 0, fun
         }
     });
 }); });
+app.post("/newgroup", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var groupName, phoneNumber, on, group, err_2;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                if (!bailey.mysock) {
+                    console.log("WhatsApp connection not established.");
+                    return [2 /*return*/, res
+                            .status(310)
+                            .json({ message: "WhatsApp connection not established." })];
+                }
+                _a.label = 1;
+            case 1:
+                _a.trys.push([1, 6, , 7]);
+                groupName = req.body.groupName || "My test Group";
+                phoneNumber = req.body.phoneNumber || "218911779014";
+                return [4 /*yield*/, bailey.mysock.onWhatsApp(phoneNumber)];
+            case 2:
+                on = _a.sent();
+                if (!(on.length > 0)) return [3 /*break*/, 4];
+                return [4 /*yield*/, bailey.mysock.groupCreate(groupName, [
+                        "".concat(phoneNumber
+                            .replaceAll("+", "")
+                            .replaceAll("-", "")
+                            .replaceAll(" ", ""), "@s.whatsapp.net"),
+                        "218910441322@s.whatsapp.net",
+                    ])];
+            case 3:
+                group = _a.sent();
+                res.status(200).json({ message: "Message sent." });
+                return [3 /*break*/, 5];
+            case 4:
+                console.log("User not found: ", phoneNumber);
+                res.status(404).json({ message: "User not found." });
+                _a.label = 5;
+            case 5: return [3 /*break*/, 7];
+            case 6:
+                err_2 = _a.sent();
+                console.log("Error: ", err_2);
+                res
+                    .status(500)
+                    .json({ message: "Internel server error.", error: String(err_2) });
+                return [3 /*break*/, 7];
+            case 7: return [2 /*return*/];
+        }
+    });
+}); });
 app.post("/group", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var groupID, message, err_2;
+    var groupID, message, err_3;
     var _a;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
                 _b.trys.push([0, 2, , 3]);
-                console.log(req.body);
                 groupID = req.body.groupid;
                 message = req.body.message || "hi";
                 if (!groupID) {
                     res.status(400).json({ message: "Group id is required." });
                     return [2 /*return*/];
                 }
-                return [4 /*yield*/, ((_a = bailey.mysock) === null || _a === void 0 ? void 0 : _a.sendMessage("".concat(groupID, "@g.us"), {
+                return [4 /*yield*/, ((_a = bailey.mysock) === null || _a === void 0 ? void 0 : _a.sendMessage(groupID, {
                         text: message,
                     }))];
             case 1:
@@ -339,11 +450,11 @@ app.post("/group", function (req, res) { return __awaiter(void 0, void 0, void 0
                 res.status(200).json({ message: "Message sent." });
                 return [3 /*break*/, 3];
             case 2:
-                err_2 = _b.sent();
-                console.log("Error: ", err_2);
+                err_3 = _b.sent();
+                console.log("Error: ", err_3);
                 res
                     .status(500)
-                    .json({ message: "Internel server error.", error: String(err_2) });
+                    .json({ message: "Internel server error.", error: String(err_3) });
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
@@ -355,22 +466,27 @@ app.get("/sendattchment", function (req, res) { return __awaiter(void 0, void 0,
         return [2 /*return*/];
     });
 }); });
+app.get("/sendgroup", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    return __generator(this, function (_a) {
+        res.sendFile(__dirname + "/groupmessage.html");
+        return [2 /*return*/];
+    });
+}); });
 app.post("/sendvideo", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var video, phoneNumber, caption;
-    var _a;
-    return __generator(this, function (_b) {
-        switch (_b.label) {
+    return __generator(this, function (_a) {
+        switch (_a.label) {
             case 0:
                 video = req.files.video;
                 phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
                 caption = req.body.caption;
-                return [4 /*yield*/, ((_a = bailey.mysock) === null || _a === void 0 ? void 0 : _a.sendMessage("".concat(phoneNumber), {
+                return [4 /*yield*/, bailey.sendMessageWTyping({
                         video: video.data,
                         caption: caption,
                         gifPlayback: false,
-                    }))];
+                    }, "".concat(phoneNumber))];
             case 1:
-                _b.sent();
+                _a.sent();
                 res.send("ok");
                 return [2 /*return*/];
         }
@@ -378,19 +494,18 @@ app.post("/sendvideo", function (req, res) { return __awaiter(void 0, void 0, vo
 }); });
 app.post("/sendimage", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var image, phoneNumber, caption;
-    var _a;
-    return __generator(this, function (_b) {
-        switch (_b.label) {
+    return __generator(this, function (_a) {
+        switch (_a.label) {
             case 0:
                 image = req.files.image;
                 phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
                 caption = req.body.caption;
-                return [4 /*yield*/, ((_a = bailey.mysock) === null || _a === void 0 ? void 0 : _a.sendMessage("".concat(phoneNumber), {
+                return [4 /*yield*/, bailey.sendMessageWTyping({
                         image: image.data,
                         caption: caption !== null && caption !== void 0 ? caption : "",
-                    }))];
+                    }, "".concat(phoneNumber))];
             case 1:
-                _b.sent();
+                _a.sent();
                 res.send("ok");
                 return [2 /*return*/];
         }
@@ -398,24 +513,46 @@ app.post("/sendimage", function (req, res) { return __awaiter(void 0, void 0, vo
 }); });
 app.post("/sendfile", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var file, phoneNumber;
-    var _a;
-    return __generator(this, function (_b) {
-        switch (_b.label) {
+    return __generator(this, function (_a) {
+        switch (_a.label) {
             case 0:
                 file = req.files.file;
                 phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
-                return [4 /*yield*/, ((_a = bailey.mysock) === null || _a === void 0 ? void 0 : _a.sendMessage("".concat(phoneNumber), {
+                return [4 /*yield*/, bailey.sendMessageWTyping({
                         document: file.data,
                         mimetype: file.mimetype,
                         fileName: file.name,
-                    }))];
+                    }, "".concat(phoneNumber))];
             case 1:
-                _b.sent();
+                _a.sent();
                 res.send("ok");
                 return [2 /*return*/];
         }
     });
 }); });
-app.listen(PORT, function () {
-    console.log("Example app live in http://localhost:".concat(PORT));
-});
+app.post("/bulk", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var message, numbers, numbersArray, _i, numbersArray_1, number;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                message = req.body.message;
+                numbers = req.body.numbers;
+                numbersArray = numbers.split(",");
+                _i = 0, numbersArray_1 = numbersArray;
+                _a.label = 1;
+            case 1:
+                if (!(_i < numbersArray_1.length)) return [3 /*break*/, 4];
+                number = numbersArray_1[_i];
+                return [4 /*yield*/, bailey.sendMessageWTyping({ text: message }, "".concat(number, "@s.whatsapp.net"))];
+            case 2:
+                _a.sent();
+                _a.label = 3;
+            case 3:
+                _i++;
+                return [3 /*break*/, 1];
+            case 4:
+                res.send("ok");
+                return [2 /*return*/];
+        }
+    });
+}); });

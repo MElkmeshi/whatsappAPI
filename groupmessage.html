@@ -31,7 +31,7 @@
             <datalist id="groups"> </datalist>
           </div>
           <script>
-            fetch("/getgroubs")
+            fetch("/getgroups")
               .then((response) => response.json())
               .then((data) => {
                 const dataList = document.getElementById("groups");
@@ -62,7 +62,7 @@
           const groupNameInput = document.getElementById("groupNameInput");
           const selectedGroupName = groupNameInput.value;
           const message = document.getElementById("groupMessageInput").value;
-          fetch(`/getgroubid/${selectedGroupName}`)
+          fetch(`/getgroupid/${selectedGroupName}`)
             .then((response) => response.json())
             .then((data) => {
               const groupId = data.id;

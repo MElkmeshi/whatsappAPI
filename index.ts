@@ -13,7 +13,8 @@ import { Boom } from "@hapi/boom";
 import { rimraf } from "rimraf";
 import { join } from "path";
 import fileUpload from "express-fileupload";
-
+const app = express();
+let isListening = false;
 const PORT = process.env.PORT || 3000;
 interface IGroup {
   id: string;
@@ -36,11 +37,23 @@ class BaileysProvider {
   name: String;
   saveCredsGlobal: undefined | (() => Promise<void>);
   mysock: ReturnType<typeof makeWASocket> | undefined;
-
+  sendMessageWTyping: (msg: AnyMessageContent, jid: string) => Promise<void>;
   constructor(name: string) {
     this.name = name;
     this.mysock = undefined;
     this.saveCredsGlobal = undefined;
+    this.sendMessageWTyping = async (msg: AnyMessageContent, jid: string) => {
+      await this.mysock!.presenceSubscribe(jid);
+      await delay(500);
+
+      await this.mysock!.sendPresenceUpdate("composing", jid);
+      await delay(2000);
+
+      await this.mysock!.sendPresenceUpdate("paused", jid);
+
+      await this.mysock!.sendMessage(jid, msg);
+      await delay(2000);
+    };
     this.initBailey().then();
   }
   initBailey = async () => {
@@ -71,6 +84,12 @@ class BaileysProvider {
         }
         if (connection === "open") {
           console.log("ready");
+          if (!isListening) {
+            isListening = true;
+            app.listen(PORT, () => {
+              console.log(`Example app live in http://localhost:${PORT}`);
+            });
+          }
           this.initBusEvents(sock);
         }
         /** QR Code */
@@ -81,20 +100,6 @@ class BaileysProvider {
       sock.ev.on("creds.update", async () => {
         await saveCreds();
       });
-      const sendMessageWTyping = async (
-        msg: AnyMessageContent,
-        jid: string
-      ) => {
-        await sock.presenceSubscribe(jid);
-        await delay(500);
-
-        await sock.sendPresenceUpdate("composing", jid);
-        await delay(2000);
-
-        await sock.sendPresenceUpdate("paused", jid);
-
-        await sock.sendMessage(jid, msg);
-      };
       sock.ev.on("messages.upsert", async (upsert) => {
         if (upsert.type === "notify") {
           // console.log("recv messages ", JSON.stringify(upsert, undefined, 2));
@@ -118,7 +123,7 @@ class BaileysProvider {
                 );
               }
               await sock!.readMessages([msg.key]);
-              await sendMessageWTyping(
+              this.sendMessageWTyping(
                 { text: msg.message?.conversation || "hi" },
                 msg.key.remoteJid!
               );
@@ -134,14 +139,14 @@ class BaileysProvider {
     this.mysock = _sock;
   };
 }
-let bailey = new BaileysProvider("test");
-const app = express();
+let bailey = new BaileysProvider("melkmeshi");
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(fileUpload());
+
 app.get("/", (req, res) => {
   if (bailey.mysock) {
-    bailey.mysock?.sendMessage("218910441322@s.whatsapp.net", { text: "hi" });
+    bailey.sendMessageWTyping({ text: "hi" }, "218910441322@s.whatsapp.net");
     res.send({ message: "sent" });
   } else {
     console.log("Sock is not avalible");
@@ -157,7 +162,7 @@ app.get("/allgroups", async (req, res) => {
     res.send({ message: "Sock is not avalible" });
   }
 });
-app.get("/getgroubid/:name", async (req, res) => {
+app.get("/getgroupid/:name", async (req, res) => {
   if (bailey.mysock) {
     const data = await bailey.mysock?.groupFetchAllParticipating();
     let id = "";
@@ -175,7 +180,7 @@ app.get("/getgroubid/:name", async (req, res) => {
     res.send({ message: "Sock is not avalible" });
   }
 });
-app.get("/getgroubs", async (req, res) => {
+app.get("/getgroups", async (req, res) => {
   if (bailey.mysock) {
     const data = await bailey.mysock?.groupFetchAllParticipating();
     const groups: IGroup[] = [];
@@ -209,9 +214,12 @@ app.post("/", async (req, res) => {
     const on = await bailey.mysock.onWhatsApp(phoneNumber);
     if (on.length > 0) {
       console.log("Sending message to: ", phoneNumber);
-      await bailey.mysock.sendMessage(`${phoneNumber}@s.whatsapp.net`, {
-        text: message,
-      });
+      await bailey.sendMessageWTyping(
+        {
+          text: message,
+        },
+        `${phoneNumber}@s.whatsapp.net`
+      );
       res.status(200).json({ message: "Message sent." });
     } else {
       console.log("User not found: ", phoneNumber);
@@ -277,40 +285,58 @@ app.post("/group", async (req, res) => {
 app.get("/sendattchment", async (req, res) => {
   res.sendFile(__dirname + "/sendattchment.html");
 });
-app.get("/sendgroub", async (req, res) => {
+app.get("/sendgroup", async (req, res) => {
   res.sendFile(__dirname + "/groupmessage.html");
 });
 app.post("/sendvideo", async (req, res) => {
   const video = req.files!.video as fileUpload.UploadedFile;
   const phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
   const caption = req.body.caption;
-  await bailey.mysock?.sendMessage(`${phoneNumber}`, {
-    video: video.data,
-    caption,
-    gifPlayback: false,
-  });
+  await bailey.sendMessageWTyping(
+    {
+      video: video.data,
+      caption,
+      gifPlayback: false,
+    },
+    `${phoneNumber}`
+  );
   res.send("ok");
 });
 app.post("/sendimage", async (req, res) => {
   const image = req.files!.image as fileUpload.UploadedFile;
   const phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
   const caption = req.body.caption;
-  await bailey.mysock?.sendMessage(`${phoneNumber}`, {
-    image: image.data,
-    caption: caption ?? "",
-  });
+  await bailey.sendMessageWTyping(
+    {
+      image: image.data,
+      caption: caption ?? "",
+    },
+    `${phoneNumber}`
+  );
   res.send("ok");
 });
 app.post("/sendfile", async (req, res) => {
   const file = req.files!.file as fileUpload.UploadedFile;
   const phoneNumber = req.body.phoneNumber + "@s.whatsapp.net";
-  await bailey.mysock?.sendMessage(`${phoneNumber}`, {
-    document: file.data,
-    mimetype: file.mimetype,
-    fileName: file.name,
-  });
+  await bailey.sendMessageWTyping(
+    {
+      document: file.data,
+      mimetype: file.mimetype,
+      fileName: file.name,
+    },
+    `${phoneNumber}`
+  );
   res.send("ok");
 });
-app.listen(PORT, () => {
-  console.log(`Example app live in http://localhost:${PORT}`);
+app.post("/bulk", async (req, res) => {
+  const message = req.body.message;
+  const numbers = req.body.numbers;
+  const numbersArray = numbers.split(",");
+  for (const number of numbersArray) {
+    await bailey.sendMessageWTyping(
+      { text: message },
+      `${number}@s.whatsapp.net`
+    );
+  }
+  res.send("ok");
 });
