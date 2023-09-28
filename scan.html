@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp QrCode</title>
+    <style>
+        div {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+  </head>
+  <body>
+    <h1> Scan Code Below Using WhatsApp App<h1>
+      <div class="container">
+        <img src="" id="qrcode_box" />
+    </div>
+
+    <script>
+      const run = async () => {
+        const ws = await new WebSocket("ws://localhost:3000");
+        let username = null;
+        ws.onopen = function () {
+          username = prompt("Enter your username:");
+          ws.send(JSON.stringify({ type: "set-username", username }));
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === "qr-code") {
+            console.log(data.message);
+            const messageElement = document.querySelector("#qrcode_box");
+            messageElement.src = data.message;
+          }
+        };
+      };
+      run();
+    </script>
+  </body>
+</html>
