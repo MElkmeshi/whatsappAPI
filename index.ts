@@ -26,17 +26,24 @@ wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     //@ts-ignore
     const data = JSON.parse(message);
-    console.log(data.type);
     if (data.type === "set-username") {
       const username = data.username;
       userConnections[username] = { ws };
-      console.log(qrs);
-      ws.send(
-        JSON.stringify({
-          type: "qr-code",
-          message: qrs[username],
-        })
-      );
+      if (qrs[username]) {
+        ws.send(
+          JSON.stringify({
+            type: "qr-code",
+            message: qrs[username],
+          })
+        );
+      }
+      if (bailey[username]?.mysock) {
+        ws.send(
+          JSON.stringify({
+            type: "authenticated",
+          })
+        );
+      }
     }
   });
 
@@ -134,9 +141,11 @@ class BaileysProvider {
         }
         if (connection === "open") {
           console.log("ready");
-          if (!isListening) {
-            isListening = true;
-          }
+          userConnections[this.name as string]!.ws.send(
+            JSON.stringify({
+              type: "authenticated",
+            })
+          );
           this.initBusEvents(sock);
         }
         /** QR Code */
@@ -195,7 +204,7 @@ const checkusername = (
   res: express.Response,
   next: express.NextFunction
 ) => {
-  if (bailey[req.body.name]) {
+  if (bailey.hasOwnProperty(req.body.username)) {
     next();
   } else {
     res.send({ message: "User not found" });
@@ -262,7 +271,8 @@ app.post("/", checkusername, async (req, res) => {
   }
 });
 app.post("/newgroup", checkusername, async (req, res) => {
-  if (!bailey.mysock) {
+  const username = req.body.username;
+  if (!bailey[username].mysock) {
     console.log("WhatsApp connection not established.");
     return res
       .status(310)
@@ -271,7 +281,6 @@ app.post("/newgroup", checkusername, async (req, res) => {
   try {
     const groupName = req.body.groupName || "My test Group";
     const phoneNumber = req.body.phoneNumber || "218911779014";
-    const username = req.body.username;
     const on = await bailey[username]?.mysock?.onWhatsApp(phoneNumber);
     if (!on) {
       res.status(404).json({ message: "User not found." });
@@ -376,20 +385,29 @@ app.post("/bulk", checkusername, async (req, res) => {
 app.get("/sendattchment", async (req, res) => {
   res.sendFile(__dirname + "/sendattchment.html");
 });
-app.get("/sendgroup", async (req, res) => {
+app.get("/sendgroup/:username", async (req, res) => {
   res.sendFile(__dirname + "/groupmessage.html");
 });
 app.get("/scan/:username", async (req, res) => {
   const username = req.params.username;
   if (!bailey.hasOwnProperty(username)) {
-    console.log("new user");
+    if (!username) return;
     bailey[username] = new BaileysProvider(username);
   }
   res.sendFile(__dirname + "/scan.html");
+  // if (bailey[username].mysock) {
+  //   await delay(100);
+  //   console.log("send authenticated");
+  //   userConnections[username as string]!.ws.send(
+  //     JSON.stringify({
+  //       type: "authenticated",
+  //     })
+  //   );
+  // }
 });
 app.get("/allgroups/:username", async (req, res) => {
-  if (bailey.mysock) {
-    const username = req.params.username;
+  const username = req.params.username;
+  if (bailey[username].mysock) {
     const data = await bailey[username].mysock?.groupFetchAllParticipating();
     res.send({ data });
   } else {
@@ -398,8 +416,8 @@ app.get("/allgroups/:username", async (req, res) => {
   }
 });
 app.get("/getgroupid/:name/:username", async (req, res) => {
-  if (bailey.mysock) {
-    const username = req.params.username;
+  const username = req.params.username;
+  if (bailey[username].mysock) {
     const data = await bailey[username].mysock?.groupFetchAllParticipating();
     let id = "";
     if (!data) return res.send({ message: "No groups found" });
@@ -418,8 +436,8 @@ app.get("/getgroupid/:name/:username", async (req, res) => {
   }
 });
 app.get("/getgroups/:username", async (req, res) => {
-  if (bailey.mysock) {
-    const username = req.params.username;
+  const username = req.params.username;
+  if (bailey[username].mysock) {
     const data = await bailey[username].mysock?.groupFetchAllParticipating();
     const groups: IGroup[] = [];
     if (!data) return res.send({ message: "No groups found" });
@@ -430,6 +448,9 @@ app.get("/getgroups/:username", async (req, res) => {
   } else {
     res.send({ message: "Sock is not avalible" });
   }
+});
+app.get("/usernames", async (req, res) => {
+  res.send(Object.keys(bailey));
 });
 server.listen(PORT, () => {
   console.log("Server is running on port 3000");

@@ -25,7 +25,19 @@
   <body>
     <div class="container mt-3">
       <div class="container small-container">
+        <h1>Send Video</h1>
         <form method="POST" action="/sendvideo" enctype="multipart/form-data">
+          <datalist id="usernames"> </datalist>
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input
+              list="usernames"
+              class="form-control"
+              id="username"
+              name="username"
+              required
+            />
+          </div>
           <div class="mb-3">
             <label for="phoneNumber" class="form-label">Phone Number</label>
             <input
@@ -64,7 +76,18 @@
           </div>
         </form>
         <hr />
+        <h1>Send Image</h1>
         <form method="POST" action="/sendimage" enctype="multipart/form-data">
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input
+              list="usernames"
+              class="form-control"
+              id="username"
+              name="username"
+              required
+            />
+          </div>
           <div class="mb-3">
             <label for="phoneNumber" class="form-label">Phone Number</label>
             <input
@@ -101,7 +124,18 @@
           </div>
         </form>
         <hr />
+        <h1>Send File</h1>
         <form method="POST" action="/sendfile" enctype="multipart/form-data">
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input
+              list="usernames"
+              class="form-control"
+              id="username"
+              name="username"
+              required
+            />
+          </div>
           <div class="mb-3">
             <label for="phoneNumber" class="form-label">Phone Number</label>
             <input
@@ -126,6 +160,19 @@
             <button type="submit" class="btn btn-primary">Send File</button>
           </div>
         </form>
+        <script>
+          fetch("/usernames")
+            .then((response) => response.json())
+            .then((data) => {
+              const dataList = document.getElementById("usernames");
+              data.forEach((username) => {
+                const option = document.createElement("option");
+                option.value = username;
+                dataList.appendChild(option);
+              });
+            })
+            .catch((error) => console.error("Error fetching data:", error));
+        </script>
       </div>
     </div>
   </body>

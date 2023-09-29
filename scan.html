@@ -16,15 +16,19 @@
   <body>
     <h1> Scan Code Below Using WhatsApp App<h1>
       <div class="container">
-        <img src="" id="qrcode_box" />
+        <img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" id="qrcode_box" />
     </div>
-
+    <a id="group">Send message to a group or phone</a>
+    <script>
+      document.getElementById("group").href= "/sendgroup/" + window.location.href.split("/")[4];
+    </script>
+    <br>
+    <a href="/sendattchment" id="attchment">Send attchment to phone</a>
     <script>
       const run = async () => {
         const ws = await new WebSocket("ws://localhost:3000");
-        let username = null;
+        const username = window.location.href.split("/")[4];
         ws.onopen = function () {
-          username = prompt("Enter your username:");
           ws.send(JSON.stringify({ type: "set-username", username }));
         };
 
@@ -32,8 +36,12 @@
           const data = JSON.parse(event.data);
           if (data.type === "qr-code") {
             console.log(data.message);
+            
             const messageElement = document.querySelector("#qrcode_box");
             messageElement.src = data.message;
+          }
+          else if (data.type === "authenticated") {
+            document.querySelector("#qrcode_box").replaceWith("Authenticated");
           }
         };
       };

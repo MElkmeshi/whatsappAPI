@@ -24,6 +24,7 @@
   <body>
     <div class="container mt-3">
       <div class="container small-container">
+        <h1>Send Message to group</h1>
         <form id="sendGroupMessage">
           <div class="mb-3">
             <label for="groupName" class="form-label">Group Name</label>
@@ -31,7 +32,7 @@
             <datalist id="groups"> </datalist>
           </div>
           <script>
-            fetch("/getgroups")
+            fetch("/getgroups/" + window.location.href.split("/")[4])
               .then((response) => response.json())
               .then((data) => {
                 const dataList = document.getElementById("groups");
@@ -51,9 +52,54 @@
             <button type="submit" class="btn btn-primary">Send Message</button>
           </div>
         </form>
+        <h1>Send Message to Phone Number</h1>
+        <form id="sendMessage">
+          <div class="mb-3">
+            <label for="phoneNumberInput" class="form-label"
+              >Phone Number</label
+            >
+            <input type="text" id="phoneNumberInput" />
+          </div>
+          <div class="mb-3">
+            <label for="messageInput" class="form-label">Message</label>
+            <input type="text" id="messageInput" />
+          </div>
+          <div class="mb-3">
+            <button type="submit" class="btn btn-primary">Send Message</button>
+          </div>
+        </form>
         <hr />
       </div>
     </div>
+    <script>
+      document
+        .getElementById("sendMessage")
+        .addEventListener("submit", function (event) {
+          event.preventDefault(); // Prevent the form from actually submitting
+          const messageData = {
+            phoneNumber: document.getElementById("phoneNumberInput").value,
+            message: document.getElementById("messageInput").value,
+            username: window.location.href.split("/")[4],
+          };
+          fetch("/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(messageData),
+          })
+            .then((response) => {
+              if (response.ok) {
+                alert("Message sent successfully!");
+              } else {
+                alert("Failed to send message.");
+              }
+            })
+            .catch((error) => {
+              console.error("Error sending message:", error);
+            });
+        });
+    </script>
     <script>
       document
         .getElementById("sendGroupMessage")
@@ -62,13 +108,18 @@
           const groupNameInput = document.getElementById("groupNameInput");
           const selectedGroupName = groupNameInput.value;
           const message = document.getElementById("groupMessageInput").value;
-          fetch(`/getgroupid/${selectedGroupName}`)
+          fetch(
+            `/getgroupid/${selectedGroupName}/${
+              window.location.href.split("/")[4]
+            }`
+          )
             .then((response) => response.json())
             .then((data) => {
               const groupId = data.id;
               const messageData = {
                 message,
                 groupid: groupId,
+                username: window.location.href.split("/")[4],
               };
               fetch("/group", {
                 method: "POST",
